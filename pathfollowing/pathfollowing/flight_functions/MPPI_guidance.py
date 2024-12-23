@@ -239,7 +239,7 @@ class MPPI_Guidance_Modules():
             // QUADROTOR MODEL PARAMETERS (PLEASE UPDATE WHEN CHANGES OCCUR)
             //--------------------------------------------------------------
             double physical_param_throttle_hover          = 0.7299;
-            double physical_param_mass                    = 1.535; 
+            double physical_param_mass                    = 1.972475; //241223 diy
             double GnC_param_desired_speed                = 3.; 
             double GnC_param_virtual_target_distance      = 4.5; 
             double GnC_param_distance_change_WP           = GnC_param_virtual_target_distance; 
@@ -378,8 +378,8 @@ class MPPI_Guidance_Modules():
                     path_following_required_info__VTP_decision(PF_var_dist_to_path, \
                         GnC_param_virtual_target_distance, PF_var_point_closest_on_path_i, PF_var_WP_idx_passed,
                         WP_WPs, PF_var_VT_Ri);
-                    path_following_required_info__takeoff_to_first_WP(WP_WPs, \
-                        state_var_Ri, PF_var_WP_idx_passed, GnC_param_dist_change_first_WP, PF_var_VT_Ri);
+                //     path_following_required_info__takeoff_to_first_WP(WP_WPs, \
+                //         state_var_Ri, PF_var_WP_idx_passed, GnC_param_dist_change_first_WP, PF_var_VT_Ri);
                 }
                     
                 // weight by variance of GPR
