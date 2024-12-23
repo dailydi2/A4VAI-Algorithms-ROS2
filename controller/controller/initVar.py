@@ -5,14 +5,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 from px4_msgs.msg import VehicleCommand
 from cv_bridge import CvBridge
 
-
-
-
 def setInitialVariables(classIn):
-
-    # set waypoint
-
-
     ## initialize flag
     # flag of start
     classIn.take_off_flag                      =   False

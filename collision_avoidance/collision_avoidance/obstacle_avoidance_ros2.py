@@ -5,7 +5,6 @@ import onnxruntime as rt
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Bool
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from .utils_gray import preprocess
@@ -17,6 +16,7 @@ from rclpy.qos import QoSReliabilityPolicy
 from rclpy.qos import qos_profile_sensor_data
 #############################################################################################################
 # added by controller
+from custom_msgs.msg import Heartbeat
 #############################################################################################################
 class JBNU_Collision(Node):
     def __init__(self):
@@ -29,12 +29,12 @@ class JBNU_Collision(Node):
         self.controller_heartbeat               =   False
 
         # declare heartbeat_publisher 
-        self.heartbeat_publisher                        =   self.create_publisher(Bool,    '/collision_avoidance_heartbeat', 1)
+        self.heartbeat_publisher                        =   self.create_publisher(Heartbeat,    '/collision_avoidance_heartbeat', 10)
         # declare heartbeat_subscriber 
-        self.controller_heartbeat_subscriber            =   self.create_subscription(Bool, '/controller_heartbeat',            self.controller_heartbeat_call_back,            10)
-        self.path_following_heartbeat_subscriber        =   self.create_subscription(Bool, '/path_following_heartbeat',        self.path_following_heartbeat_call_back,        10)
-        self.path_planning_heartbeat_subscriber         =   self.create_subscription(Bool, '/path_planning_heartbeat',         self.path_planning_heartbeat_call_back,         10)
-        self.pub = self.create_publisher(Image, '/image4', 1)
+        self.controller_heartbeat_subscriber            =   self.create_subscription(Heartbeat, '/controller_heartbeat',            self.controller_heartbeat_call_back,            10)
+        self.path_following_heartbeat_subscriber        =   self.create_subscription(Heartbeat, '/path_following_heartbeat',        self.path_following_heartbeat_call_back,        10)
+        self.path_planning_heartbeat_subscriber         =   self.create_subscription(Heartbeat, '/path_planning_heartbeat',         self.path_planning_heartbeat_call_back,         10)
+
 
         self.image = []
 #############################################################################################################
@@ -42,7 +42,7 @@ class JBNU_Collision(Node):
         self.sess = rt.InferenceSession(model_pretrained.SerializeToString(), providers=['TensorrtExecutionProvider', 'CUDAExecutionProvider', 'CPUExecutionProvider'])
         self.output_name = self.sess.get_outputs()[0].name
         self.input_name = self.sess.get_inputs()[0].name
-        self.subscription = self.create_subscription(Image, '/airsim_node/SimpleFlight/Depth_Camera_DepthPerspective/image', self.depth_sub, 1)
+        self.subscription = self.create_subscription(Image, '/depth/raw', self.depth_sub, 1)
 
 
         # self.CameraSubscriber_ = self.create_subscription(Image, '/airsim_node/Typhoon_1/DptCamera/DepthPerspective', self.depth_sub, QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
@@ -72,8 +72,8 @@ class JBNU_Collision(Node):
                 vyaw = infer[3] * 1.0
 
                 cmd = Twist()
-                cmd.linear.x = float(vx) * 2.0
-                cmd.linear.y = float(vy) * 2.0
+                cmd.linear.x = float(vx)
+                cmd.linear.y = float(vy)
                 cmd.linear.z = float(vz)
                 cmd.angular.z = vyaw * 2.0
                 self.publisher_cmd.publish(cmd)
@@ -90,61 +90,45 @@ class JBNU_Collision(Node):
         except Exception as e:
             self.get_logger().error(f"Error converting Image message: {e}")
             return
-        
-        valid_image = np.ones(image.shape)*12.0
-        
-        valid_mask = (image <= 12) & (image > 0.3)
-
-        valid_image[valid_mask] = image[valid_mask]
 
         # Your preprocessing steps here
-        image = np.interp(image, (0, 12.0), (0, 255))
-        self.publish_image4(image)
-        # scaled_depths = np.interp(valid_depths, (valid_depths.min(), valid_depths.max()), (0, 255))
+        # image = np.interp(image, (0, 10.0), (0, 255))
+        
+        valid_mask = image < 100
 
-        # output_image = np.full(image.shape, 255, dtype=np.uint8)
+        valid_depths = image[valid_mask]
+
+        scaled_depths = np.interp(valid_depths, (valid_depths.min(), valid_depths.max()), (0, 255))
+
+        output_image = np.full(image.shape, 255, dtype=np.uint8)
             
-        # output_image[valid_mask] = scaled_depths.astype(np.uint8)
+        output_image[valid_mask] = scaled_depths.astype(np.uint8)
+        image = preprocess(output_image)
 
-        image = preprocess(image)
+        # cv2.imshow('walid', image.astype(np.uint8))
+        # cv2.waitKey(0)
 
         image = np.array([image])  # The model expects a 4D array
         self.image = image.astype(np.float32)
 
-
-    def publish_image4(self, image):
-        msg = Image()
-
-        msg.header.frame_id = 'depth_image'
-        msg.header.stamp = rclpy.time.Time().to_msg()
-        msg.height = image.shape[0]
-        msg.width = image.shape[1]
-        msg.encoding = "32FC1"
-        msg.is_bigendian = 0
-        msg.step = image.shape[1] * 4
-
-        # Convert and publish the message
-        msg.data = image.tobytes()
-        self.pub.publish(msg)
-
 # heartbeat check function
     # heartbeat publish
     def publish_heartbeat(self):
-        msg = Bool()
-        msg.data = True
+        msg = Heartbeat()
+        msg.heartbeat = True
         self.heartbeat_publisher.publish(msg)
 
     # heartbeat subscribe from controller
     def controller_heartbeat_call_back(self,msg):
-        self.controller_heartbeat = msg.data
+        self.controller_heartbeat = msg.heartbeat
 
     # heartbeat subscribe from path following
     def path_planning_heartbeat_call_back(self,msg):
-        self.path_planning_heartbeat = msg.data
+        self.path_planning_heartbeat = msg.heartbeat
 
     # heartbeat subscribe from collision avoidance
     def path_following_heartbeat_call_back(self,msg):
-        self.path_following_heartbeat = msg.data
+        self.path_following_heartbeat = msg.heartbeat
 #############################################################################################################
 
 def main(args=None):
